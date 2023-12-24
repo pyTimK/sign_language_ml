@@ -64,7 +64,15 @@ class MyModel:
         log_dir = os.path.join("Logs")
         tb_callback = TensorBoard(log_dir=log_dir)
 
-        model = self.create()
+        model = self.create(
+            optimizer="sgd",
+            activation="tanh",
+            dropout_rate=0.5,
+            kernel_size=3,
+            pool_size=2,
+            lstm_units=64,
+            num_dense_units=64,
+        )
 
         checkpoint = ModelCheckpoint(
             "model.keras",

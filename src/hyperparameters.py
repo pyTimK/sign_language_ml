@@ -29,25 +29,35 @@ class HyperParameters:
         print(self.my_model.create())
 
         def build_fn(
-            pool_size=2,
+            optimizer="adam",
+            activation="relu",
+            dropout_rate=0.5,
+            lstm_units=64,
+            num_dense_units=64,
         ):
-            return self.my_model.create(pool_size=pool_size)
+            return self.my_model.create(
+                optimizer=optimizer,
+                activation=activation,
+                dropout_rate=dropout_rate,
+                lstm_units=lstm_units,
+                num_dense_units=num_dense_units,
+            )
 
         # Wrapper function for KerasClassifier
         model = KerasClassifier(
             model=build_fn,
-            epochs=130,
+            epochs=20,
             batch_size=5,
             verbose=0,
         )
 
         # Hyperparameters to tune
         param_grid = {
-            "optimizer": ["adam", "sgd", "rmsprop"],
-            "activation": ["relu", "tanh", "sigmoid"],
-            "dropout_rate": [0.0, 0.2, 0.4],
-            "lstm_units": [64, 128],
-            "num_dense_units": [64, 128],
+            "model__optimizer": ["adam", "sgd", "rmsprop"],
+            "model__activation": ["relu", "tanh", "sigmoid"],
+            "model__dropout_rate": [0.0, 0.2, 0.4],
+            "model__lstm_units": [64, 128],
+            "model__num_dense_units": [64, 128],
         }
 
         print("Defining StratifiedKFold cross-validator...")
