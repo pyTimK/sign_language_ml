@@ -22,12 +22,12 @@ class AI:
         res,
         actions,
         input_frame,
-        difficulty: Literal["BEGINNER", "INTERMEDIATE"],
+        difficulty: str,
         target_filename: str,
     ):
         output_frame = input_frame.copy()
         _y = 17
-        _width = 200
+        _width = 80 if difficulty == "BEGINNER" else 200
         text_y_offset = 85 if difficulty == "BEGINNER" else 350
 
         for num, prob in enumerate(res):
@@ -189,8 +189,11 @@ class AI:
                 cv2.imshow("OpenCV Feed", image)
 
                 # Break gracefully
-                if cv2.waitKey(10) & 0xFF == ord("q"):
-                    break
+                if cv2.waitKey(10) & 0xFF == ord("q") or cv2.waitKey(10) & 0xFF == 27:
+                    if mode == "PREDICT":
+                        cap.release()
+                        cv2.destroyAllWindows()
+                        return {"action_found": False}
 
                 # Encode the frame to JPEG
                 # ret, jpeg = cv2.imencode(".jpg", image)

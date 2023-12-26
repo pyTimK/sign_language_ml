@@ -7,7 +7,7 @@ DATA_PATH = os.path.join("MP_Data")
 
 # Actions that we try to detect
 # TIMEOUT_SECONDS = 20
-TIMEOUT_SECONDS = 300
+TIMEOUT_SECONDS = 40
 THRESHOLD_NUM_MIN = 4
 
 
