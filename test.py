@@ -9,7 +9,7 @@ from src.constants import (
 )
 
 
-def check_if_performed(action: str):
+def check_if_performed(action: str, image_base64: str, cache):
     config = (
         BEGINNER_CONFIG
         if action in BEGINNER_CONFIG.actions
@@ -29,8 +29,8 @@ def check_if_performed(action: str):
 
     ai = AI(config)
 
-    result = ai.check_if_performed(action)  #! START - predict
-    print(f"Result: {result}")
+    result = ai.check_if_performed(action, image_base64, cache)  #! START - predict
+    # print(f"Result: {result}")
     return result
 
 

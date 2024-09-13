@@ -9,6 +9,9 @@ from tensorflow.keras.models import load_model  # type: ignore
 from .configuration import Configuration
 from typing import Literal
 from time import time
+import base64
+
+model = load_model(f"model_BEGINNER.keras")
 
 
 class AI:
@@ -111,124 +114,177 @@ class AI:
         return output_frame
 
     #! Start video
-    def _start(self, mode: Literal["VIEW", "PREDICT"], action_index=0):
-        sequence = []
-        model = load_model(f"model_{self.config.difficulty}.keras")
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-        cv2.namedWindow("OpenCV Feed", cv2.WINDOW_FULLSCREEN)
-        cv2.setWindowProperty("OpenCV Feed", cv2.WND_PROP_TOPMOST, 1)
-        cv2.setWindowProperty(
-            "OpenCV Feed", cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FULLSCREEN
-        )
+    def _start(
+        self,
+        mode: Literal["VIEW", "PREDICT"],
+        action_index=0,
+        image_base64="",
+        cache=None,
+    ):
+        # # Remove the prefix if present
+        # if image_base64.startswith("data:image/jpeg;base64,"):
+        #     image_base64 = image_base64[len("data:image/jpeg;base64,") :]
+        # return {"image": image_base64, "action_found": False}, 200
+        # model = load_model(f"model_{self.config.difficulty}.keras")
+        # cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        # cv2.namedWindow("OpenCV Feed", cv2.WINDOW_FULLSCREEN)
+        # cv2.setWindowProperty("OpenCV Feed", cv2.WND_PROP_TOPMOST, 1)
+        # cv2.setWindowProperty(
+        #     "OpenCV Feed", cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FULLSCREEN
+        # )
         threshold_num = 0
+        sequence = cache.get("sequence") or []
         # Set mediapipe model
         with MPH.get_holistic() as holistic:
             start_time = time()
             print("Starting...")
-            while cap.isOpened():
-                # loop_start_time = time()
-                # Read feed
-                ret, image = cap.read()
+            # loop_start_time = time()
+            # Read feed
+            # ret, image = cap.read()
 
-                # Make detections
-                image, results = MPH.detect(image, holistic)
+            #! NEWLY ADDED
+            # Remove the prefix if present
+            if image_base64.startswith("data:image/jpeg;base64,"):
+                image_base64 = image_base64[len("data:image/jpeg;base64,") :]
 
-                # Draw landmarks
-                MPH.draw_landmarks(image, results)
+            # print("11111111111111111111111111111111111111111111111111111")
+            # print(image_base64)
 
-                # 2. Prediction logic
-                keypoints = MPH.extract_keypoints(results)
-                sequence.append(keypoints)
-                sequence = sequence[-1 * self.config.frame_length :]
+            image_bytes = base64.b64decode(image_base64)
+            # print("222222222222222222222222222222222222222222222222222")
+            # print(image_bytes)
 
-                if len(sequence) == self.config.frame_length:
-                    res = model.predict(np.expand_dims(sequence, axis=0))[0]
+            im_arr = np.frombuffer(
+                image_bytes, dtype=np.uint8
+            )  # im_arr is one-dim Numpy array
+            # print("333333333333333333333333333333333333333333333333")
+            # print(im_arr)
+            image = cv2.imdecode(im_arr, flags=cv2.IMREAD_COLOR)
+            # image = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), -1)
+            # print("4444444444444444444444444444444444444444444444444444444")
+            # print(image)
 
-                    print(self.config.actions[np.argmax(res)])
+            height, width, channels = image.shape
+            print(f"Length: {len(sequence)}")
+            print("image resolution:", width, "x", height)
 
-                    if mode == "PREDICT":
-                        print(
-                            f"cv2.getWindowImageRect('Frame'): {cv2.getWindowImageRect('OpenCV Feed')}"
-                        )
-                        time_left = TIMEOUT_SECONDS - (time() - start_time)
-                        image = AI._draw_timer(image, time_left)
-                        image = AI._draw_word(
-                            image, filename_to_phrase[self.config.actions[action_index]]
-                        )
-                        image = AI._prob_viz(
-                            res,
-                            self.config.actions,
-                            image,
-                            self.config.difficulty,
-                            self.config.actions[action_index],
-                        )
-                        # print(res[action_index])
+            # # Make detections
+            # image, results = MPH.detect(image, holistic)
 
-                        # ? Found
-                        if res[action_index] > AI._threshold:
-                            threshold_num += 1
+            # # Draw landmarks
+            # MPH.draw_landmarks(image, results)
 
-                        if threshold_num > THRESHOLD_NUM_MIN:
-                            cap.release()
-                            cv2.destroyAllWindows()
-                            return {"action_found": True}
+            #!!!
+            # Convert the CV2 image to a bytes object
+            retval, buffer = cv2.imencode(".jpg", image)
+            image_bytes = buffer.tobytes()
 
-                        # ? Not found
-                        if time_left < 0:
-                            cap.release()
-                            cv2.destroyAllWindows()
-                            return {"action_found": False}
+            # Encode the bytes as base64
+            image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
-                    elif mode == "VIEW":
-                        image = AI._prob_viz(res, self.config.actions, image)
+            return {"image": image_base64, "action_found": False}, 200
+            #!!!
 
-                # cv2.rectangle(image, (0, 0), (640, 40), (245, 117, 16), -1)
+            # 2. Prediction logic
+            keypoints = MPH.extract_keypoints(results)
+            sequence.append(keypoints)
+            sequence = sequence[-1 * self.config.frame_length :]
 
-                # Show to screen
+            if len(sequence) == self.config.frame_length:
+                res = model.predict(np.expand_dims(sequence, axis=0))[0]
 
-                cv2.imshow("OpenCV Feed", image)
+                print(self.config.actions[np.argmax(res)])
 
-                # Break gracefully
-                if cv2.waitKey(10) & 0xFF == ord("q") or cv2.waitKey(10) & 0xFF == 27:
-                    if mode == "PREDICT":
-                        cap.release()
+                if mode == "PREDICT":
+                    print(
+                        f"cv2.getWindowImageRect('Frame'): {cv2.getWindowImageRect('OpenCV Feed')}"
+                    )
+                    time_left = TIMEOUT_SECONDS - (time() - start_time)
+                    image = AI._draw_timer(image, time_left)
+                    image = AI._draw_word(
+                        image, filename_to_phrase[self.config.actions[action_index]]
+                    )
+                    image = AI._prob_viz(
+                        res,
+                        self.config.actions,
+                        image,
+                        self.config.difficulty,
+                        self.config.actions[action_index],
+                    )
+                    # print(res[action_index])
+
+                    # ? Found
+                    if res[action_index] > AI._threshold:
+                        threshold_num += 1
+
+                    if threshold_num > THRESHOLD_NUM_MIN:
+                        cv2.destroyAllWindows()
+                        return {"action_found": True}
+
+                    # ? Not found
+                    if time_left < 0:
                         cv2.destroyAllWindows()
                         return {"action_found": False}
 
-                # Encode the frame to JPEG
-                # ret, jpeg = cv2.imencode(".jpg", image)
-                # image_bytes = jpeg.tobytes()
+                elif mode == "VIEW":
+                    image = AI._prob_viz(res, self.config.actions, image)
 
-                # Yield the frame for streaming
-                # yield (
-                #     b"--frame\r\n"
-                #     b"Content-Type: image/jpeg\r\n\r\n" + image_bytes + b"\r\n\r\n"
-                # )
-                # additional_info = {
-                #     "action_found": True,
-                #     "prediction": {"class": "example"},
-                # }
-                # yield (
-                #     b"--frame\r\n"
-                #     b"Content-Type: image/jpeg\r\n\r\n"
-                #     + frame_bytes
-                #     + b"\r\n\r\n"
-                #     + b"Content-Type: application/json\r\n\r\n"
-                #     + json.dumps(additional_info).encode("utf-8")
-                #     + b"\r\n\r\n"
-                # )
+            # cv2.rectangle(image, (0, 0), (640, 40), (245, 117, 16), -1)
 
-                # loop_end_time = time()
-                # print(f"Loop time: {loop_end_time - loop_start_time}")
-            # cap.release()
-            # cv2.destroyAllWindows()
+            # Show to screen
+
+            cv2.imshow("OpenCV Feed", image)
+
+            # Break gracefully
+            if cv2.waitKey(10) & 0xFF == ord("q") or cv2.waitKey(10) & 0xFF == 27:
+                if mode == "PREDICT":
+                    cv2.destroyAllWindows()
+                    return {"action_found": False}
+
+            # Convert the CV2 image to a bytes object
+            retval, buffer = cv2.imencode(".jpg", image)
+            image_bytes = buffer.tobytes()
+
+            # Encode the bytes as base64
+            image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+            cache.set("sequence", sequence)
+            print(f"Length: {len(sequence)}")
+
+            return {"image": image_base64, "action_found": False}, 200
+
+            # Encode the frame to JPEG
+            # ret, jpeg = cv2.imencode(".jpg", image)
+            # image_bytes = jpeg.tobytes()
+
+            # Yield the frame for streaming
+            # yield (
+            #     b"--frame\r\n"
+            #     b"Content-Type: image/jpeg\r\n\r\n" + image_bytes + b"\r\n\r\n"
+            # )
+            # additional_info = {
+            #     "action_found": True,
+            #     "prediction": {"class": "example"},
+            # }
+            # yield (
+            #     b"--frame\r\n"
+            #     b"Content-Type: image/jpeg\r\n\r\n"
+            #     + frame_bytes
+            #     + b"\r\n\r\n"
+            #     + b"Content-Type: application/json\r\n\r\n"
+            #     + json.dumps(additional_info).encode("utf-8")
+            #     + b"\r\n\r\n"
+            # )
+
+            # loop_end_time = time()
+            # print(f"Loop time: {loop_end_time - loop_start_time}")
 
     #! Start video checker
     def show_all(self):
         self._start("VIEW")
 
     #! Start video checker
-    def check_if_performed(self, action: str):
+    def check_if_performed(self, action: str, image_base64: str, cache):
         action_index = -1
         try:
             action_index = np.where(self.config.actions == action)[0][0]
@@ -237,7 +293,9 @@ class AI:
                 f"Action {action} not found in {self.config.difficulty} level"
             )
 
-        return self._start("PREDICT", action_index=action_index)
+        return self._start(
+            "PREDICT", action_index=action_index, image_base64=image_base64, cache=cache
+        )
         # found = self._start("VIEW", action_index=action_index)
 
         # return found if found else False
